@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/rs/cors"
 	"github.com/sam-vermeulen/go-poker/internal/room"
 	"github.com/sam-vermeulen/go-poker/internal/types"
 	"github.com/sam-vermeulen/go-poker/pkg/utils"
@@ -28,12 +29,19 @@ type Server struct {
 func NewServer(rm *room.RoomManager) *Server {
 	r := mux.NewRouter()
 
+	corsHandler := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, // Be more restrictive in production
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	})
+
 	s := &Server{
 		router: r,
 		rm:     rm,
 		server: &http.Server{
 			Addr:         ":8080",
-			Handler:      r,
+			Handler:      corsHandler.Handler(r),
 			ReadTimeout:  15 * time.Second,
 			WriteTimeout: 15 * time.Second,
 			IdleTimeout:  60 * time.Second,

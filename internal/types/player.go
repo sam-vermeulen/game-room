@@ -7,7 +7,7 @@ import (
 )
 
 type Player struct {
-	Name string
+	Name string `json:"name"`
 	Conn *websocket.Conn
 }
 

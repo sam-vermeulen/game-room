@@ -19,6 +19,13 @@ type Room struct {
 	OnEmpty      func(code string)
 	createdAt    time.Time
 	cleanupTimer *time.Timer
+	texts        []*types.Message
+}
+
+type TextMessage struct {
+	Text      string    `json:"text"`
+	Sender    string    `json:"sender,omitempty"`
+	Timestamp time.Time `json:"timestamp,omitempty"`
 }
 
 func NewRoom(code string) *Room {
@@ -59,6 +66,10 @@ func (r *Room) AddPlayer(p *types.Player) {
 	if r.cleanupTimer != nil {
 		r.cleanupTimer.Stop()
 	}
+
+	for _, text := range r.texts {
+		p.Send(text)
+	}
 }
 
 func (r *Room) RemovePlayer(p *types.Player) {
@@ -73,11 +84,9 @@ func (r *Room) RemovePlayer(p *types.Player) {
 	}
 }
 
-func (r *Room) broadcastMessage(msg interface{}, exclude *types.Player) {
+func (r *Room) broadcastMessage(msg interface{}) {
 	for _, player := range r.Players {
-		if exclude != player {
-			go player.Send(msg)
-		}
+		go player.Send(msg)
 	}
 }
 
@@ -99,8 +108,28 @@ func (r *Room) selectGame(p *types.Player, selectedGame string) {
 func (r *Room) HandleMessage(p *types.Player, msg types.Message) {
 	switch msg.Type {
 	case types.MessageChat:
-		r.broadcastMessage(msg, p)
-		log.Printf("Chat message to %s from %s: %s", r.Code, p.Name, msg.Payload)
+		var text TextMessage
+
+		text.Timestamp = time.Now()
+		text.Sender = p.Name
+
+		if err := json.Unmarshal(msg.Payload, &text); err != nil {
+			go p.Send("Incorrect text format")
+			return
+		}
+
+		newPayload, err := json.Marshal(text)
+		if err != nil {
+			go p.Send("Error creating message")
+			return
+		}
+
+		msg.Payload = newPayload
+
+		r.texts = append(r.texts, &msg)
+
+		r.broadcastMessage(msg)
+		log.Printf("Chat message to %s from %s: %s", r.Code, p.Name, text.Text)
 		return
 	case types.MessageGameCreate:
 		if r.Game != nil {
